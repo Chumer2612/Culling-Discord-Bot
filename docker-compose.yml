@@ -5,12 +5,8 @@ services:
     build: .
     container_name: culling-discord-bot
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    network_mode: "host"
     env_file:
       - .env
     volumes:
-      # Esse volume opcional é útil se você tiver algum banco de dados local tipo SQLite
-      # mas como você usa MySQL na máquina host, os arquivos do bot são descartáveis.
-      # Montamos apenas o .env se precisar alterar algo rápido sem dar rebuild
       - ./.env:/app/.env
