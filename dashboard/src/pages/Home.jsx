@@ -95,7 +95,7 @@ export default function Home({ token }) {
                   <div>
                     <p style={{ margin: 0, fontWeight: 500 }}>
                       {act.type === 'kill' 
-                        ? <><span style={{ color: 'var(--danger)' }}>{act.killer_name}</span> abateu <span style={{ color: 'var(--warning)' }}>{act.victim_name}</span> com {act.weapon}</>
+                        ? <><span style={{ color: 'var(--danger)' }}>{act.killer_name}</span> abateu <span style={{ color: 'var(--warning)' }}>{act.victim_name}</span></>
                         : <><span style={{ color: 'var(--primary)' }}>{act.discord_name}</span> executou: <code>{act.minecraft_command}</code></>}
                     </p>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>

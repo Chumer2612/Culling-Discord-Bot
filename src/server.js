@@ -121,7 +121,6 @@ app.get("/api/activities", authenticateToken, async (req, res) => {
         'kill' as type,
         killer_name, 
         victim_name, 
-        weapon, 
         created_at
       FROM culling_kills
       ORDER BY created_at DESC
