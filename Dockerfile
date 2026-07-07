@@ -8,7 +8,8 @@ COPY . .
 
 # Entra na pasta do painel web e faz o build (transformando o React em HTML estático)
 WORKDIR /app/dashboard
-RUN npm install
+# Força a instalação das devDependencies (Vite) ignorando um possível NODE_ENV=production global da VPS
+RUN npm install --include=dev
 RUN npm run build
 
 # Volta para a pasta principal e instala as dependências do servidor do bot
