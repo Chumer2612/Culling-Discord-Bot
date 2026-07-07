@@ -272,6 +272,13 @@ app.post("/api/requests/:id/status", authenticateToken, async (req, res) => {
     const { status, staffNotes, adaptedText } = req.body;
     
     const pool = getPool();
+
+    // 1. Buscar a request original
+    const [originalRows] = await pool.execute("SELECT * FROM culling_victory_requests WHERE id = ?", [id]);
+    if (originalRows.length === 0) return res.status(404).json({ error: "Pedido não encontrado" });
+    const originalRequest = originalRows[0];
+
+    // 2. Atualizar status
     if (status === 'ADAPTED' && adaptedText) {
       await pool.execute(
         "UPDATE culling_victory_requests SET status = ?, staff_notes = ?, adapted_text = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
@@ -281,6 +288,36 @@ app.post("/api/requests/:id/status", authenticateToken, async (req, res) => {
       await pool.execute(
         "UPDATE culling_victory_requests SET status = ?, staff_notes = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
         [status, staffNotes || null, req.user.username || 'Dashboard', id]
+      );
+    }
+
+    // 3. Sistema de Reembolso e Notificação
+    const playerUuid = originalRequest.player_uuid;
+    const playerName = originalRequest.player_name;
+    const cost = originalRequest.cost;
+    const reqType = originalRequest.request_type === 'RULE' ? 'Regra' : 'Condição de Vitória';
+    let notificationMsg = "";
+
+    if (status === 'DENIED') {
+      // Devolver os pontos se o custo for > 0
+      if (cost > 0) {
+        await pool.execute(
+          `INSERT INTO culling_discord_admin_actions (discord_id, discord_name, action_type, minecraft_command, status)
+           VALUES ('Dashboard', 'Painel Web', 'REFUND', ?, 'PENDING')`,
+          [`/cullingadmin pontos add ${playerName} ${cost}`]
+        );
+      }
+      notificationMsg = `§c§l[!] SEU PEDIDO FOI NEGADO!\n§cTipo: §f${reqType}\n§cMotivo: §f${staffNotes || "Não informado"}\n§aSeus ${cost} pontos foram reembolsados!`;
+    } else if (status === 'APPROVED') {
+      notificationMsg = `§a§l[!] SEU PEDIDO FOI APROVADO!\n§aTipo: §f${reqType}\n§aMotivo/Nota: §f${staffNotes || "Aprovado sem ressalvas!"}`;
+    } else if (status === 'ADAPTED') {
+      notificationMsg = `§e§l[!] SEU PEDIDO FOI ADAPTADO!\n§eTipo: §f${reqType}\n§eTexto Oficial: §f${adaptedText}\n§eMotivo da Mudança: §f${staffNotes || "Balanceamento padrão."}`;
+    }
+
+    if (notificationMsg) {
+      await pool.execute(
+        "INSERT INTO culling_offline_notifications (player_uuid, message) VALUES (?, ?)",
+        [playerUuid, notificationMsg]
       );
     }
 

@@ -116,6 +116,16 @@ async function ensureDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `);
 
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS culling_offline_notifications (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      player_uuid VARCHAR(36) NOT NULL,
+      message TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_player_uuid (player_uuid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `);
+
   // Seeding inicial para não perder acesso
   const [users] = await pool.execute("SELECT id FROM culling_dashboard_users LIMIT 1");
   if (users.length === 0) {
