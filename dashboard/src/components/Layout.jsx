@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, FileCheck, MessageSquare, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, FileCheck, MessageSquare, LogOut, ShieldAlert } from 'lucide-react';
 
 export default function Layout({ onLogout }) {
   return (
@@ -23,6 +23,9 @@ export default function Layout({ onLogout }) {
           </NavLink>
           <NavLink to="/chat" className={({isActive}) => isActive ? "nav-link active" : "nav-link"}>
             <MessageSquare size={20} /> Chat do Bot
+          </NavLink>
+          <NavLink to="/users" className={({isActive}) => isActive ? "nav-link active" : "nav-link"}>
+            <ShieldAlert size={20} /> Administradores
           </NavLink>
         </nav>
 

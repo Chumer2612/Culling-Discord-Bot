@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const path = require("path");
+const bcrypt = require("bcrypt");
 const { getPool } = require("./database");
 const { client } = require("./config");
 
@@ -10,7 +11,6 @@ app.use(cors());
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || "culling_secret_key_123";
-const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || "abate123";
 
 // Middleware de Autenticação
 function authenticateToken(req, res, next) {
@@ -27,13 +27,71 @@ function authenticateToken(req, res, next) {
 }
 
 // Rota de Login
-app.post("/api/login", (req, res) => {
-  const { password } = req.body;
-  if (password === DASHBOARD_PASSWORD) {
-    const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: "24h" });
-    res.json({ token });
-  } else {
-    res.status(401).json({ error: "Senha incorreta" });
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "Faltam dados" });
+
+    const pool = getPool();
+    const [users] = await pool.execute("SELECT * FROM culling_dashboard_users WHERE username = ?", [username]);
+
+    if (users.length === 0) {
+      return res.status(401).json({ error: "Usuário ou senha incorretos" });
+    }
+
+    const user = users[0];
+    const valid = await bcrypt.compare(password, user.password_hash);
+
+    if (valid) {
+      const token = jwt.sign({ id: user.id, username: user.username, admin: true }, JWT_SECRET, { expiresIn: "24h" });
+      res.json({ token, username: user.username });
+    } else {
+      res.status(401).json({ error: "Usuário ou senha incorretos" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro interno no servidor" });
+  }
+});
+
+// Usuários (Dashboard)
+app.get("/api/users", authenticateToken, async (req, res) => {
+  try {
+    const pool = getPool();
+    const [users] = await pool.execute("SELECT id, username, created_at FROM culling_dashboard_users ORDER BY id ASC");
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+app.post("/api/users", authenticateToken, async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "Faltam dados" });
+
+    const pool = getPool();
+    const [existing] = await pool.execute("SELECT id FROM culling_dashboard_users WHERE username = ?", [username]);
+    if (existing.length > 0) return res.status(400).json({ error: "Usuário já existe" });
+
+    const hashed = await bcrypt.hash(password, 10);
+    await pool.execute("INSERT INTO culling_dashboard_users (username, password_hash) VALUES (?, ?)", [username, hashed]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+app.delete("/api/users/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (String(id) === String(req.user.id)) return res.status(400).json({ error: "Você não pode excluir a si mesmo" });
+
+    const pool = getPool();
+    await pool.execute("DELETE FROM culling_dashboard_users WHERE id = ?", [id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Erro interno" });
   }
 });
 
@@ -211,13 +269,20 @@ app.get("/api/channels", authenticateToken, async (req, res) => {
 app.post("/api/requests/:id/status", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, staffNotes } = req.body;
+    const { status, staffNotes, adaptedText } = req.body;
     
     const pool = getPool();
-    await pool.execute(
-      "UPDATE culling_victory_requests SET status = ?, staff_notes = ?, resolved_by = 'Dashboard', resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
-      [status, staffNotes || null, id]
-    );
+    if (status === 'ADAPTED' && adaptedText) {
+      await pool.execute(
+        "UPDATE culling_victory_requests SET status = ?, staff_notes = ?, adapted_text = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [status, staffNotes || null, adaptedText, req.user.username || 'Dashboard', id]
+      );
+    } else {
+      await pool.execute(
+        "UPDATE culling_victory_requests SET status = ?, staff_notes = ?, resolved_by = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [status, staffNotes || null, req.user.username || 'Dashboard', id]
+      );
+    }
 
     // Dispara Sync
     const { syncPanels } = require("./panels");

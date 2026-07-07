@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock } from 'lucide-react';
 
 export default function Login({ setToken }) {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,7 @@ export default function Login({ setToken }) {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        body: JSON.stringify({ username, password })
       });
 
       const data = await res.json();
@@ -42,6 +43,18 @@ export default function Login({ setToken }) {
         </div>
 
         <form onSubmit={handleLogin}>
+          <div className="input-group">
+            <label>Usuário</label>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="admin"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required 
+            />
+          </div>
+
           <div className="input-group">
             <label>Senha de Acesso</label>
             <input 

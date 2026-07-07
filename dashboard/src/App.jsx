@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import Players from './pages/Players';
 import Requests from './pages/Requests';
 import ChatBot from './pages/ChatBot';
+import Users from './pages/Users';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="players" element={<Players token={token} />} />
           <Route path="requests" element={<Requests token={token} />} />
           <Route path="chat" element={<ChatBot token={token} />} />
+          <Route path="users" element={<Users token={token} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
