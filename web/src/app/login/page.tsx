@@ -7,9 +7,9 @@ import { Gamepad2, Shield } from "lucide-react";
 
 export default function LoginPage() {
   const handleLogin = () => {
-    // Redirects to the NestJS OAuth2 login endpoint
-    // In production, this URL should be dynamic based on env vars
-    window.location.href = "http://localhost:3002/api/auth/discord/login";
+    // Redireciona para o proxy interno do Next.js (que joga pra API)
+    // Funciona independente se é localhost ou IP da VPS
+    window.location.href = "/api/auth/discord/login";
   };
 
   return (
