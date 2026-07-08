@@ -47,6 +47,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this.pool;
   }
 
+  async query(sql: string, values?: any[]): Promise<any> {
+    return this.pool.execute(sql, values);
+  }
+
   private async ensureStaffTables() {
     const staffUsersTable = `
       CREATE TABLE IF NOT EXISTS culling_staff_users (
