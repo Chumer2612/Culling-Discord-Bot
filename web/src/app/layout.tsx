@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
-const poppins = Poppins({
+const inter = Inter({
   variable: "--font-sans",
-  weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
@@ -22,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <body
-        className={`${poppins.variable} antialiased`}
+        className={`${inter.variable} antialiased`}
       >
         {children}
         <Toaster theme="dark" />
