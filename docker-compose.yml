@@ -49,3 +49,13 @@ services:
       - DB_PASSWORD=${MYSQL_PASSWORD}
       - PORT=3002
       - FRONTEND_URL=http://localhost:3001
+
+  culling-admin-web:
+    build: 
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: culling-admin-web
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+      - PORT=3001
