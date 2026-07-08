@@ -75,7 +75,7 @@ export default function ChatPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label>Canal de Destino</Label>
-              <Select value={channelId} onValueChange={setChannelId}>
+              <Select value={channelId} onValueChange={(val) => setChannelId(val as string)}>
                 <SelectTrigger className="bg-black/50 border-white/10">
                   <SelectValue placeholder={loading ? "Carregando canais..." : "Selecione o canal..."} />
                 </SelectTrigger>
