@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require("discord.js");
 const { getPool } = require("../database");
 const { requireBotAdmin } = require("../security");
+const crypto = require("crypto");
 
 function cleanText(text, maxLength = 500) {
   if (!text) return "";
@@ -46,6 +47,24 @@ async function enqueueAdminAction(interaction, actionType, minecraftCommand) {
   return result.insertId;
 }
 
+async function enqueueControlAction(interaction, actionType, targetName, payloadJson) {
+  const pool = getPool();
+  const discordId = interaction.user.id;
+  const discordName = interaction.user.tag || interaction.user.username;
+  const idempotencyKey = crypto.randomUUID();
+
+  const [result] = await pool.execute(
+    `
+    INSERT INTO culling_control_actions
+    (origin, actor_type, actor_id, actor_name, action_type, target_name, payload_json, idempotency_key)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    ["DISCORD", "DISCORD_USER", discordId, discordName, actionType, targetName, JSON.stringify(payloadJson), idempotencyKey]
+  );
+
+  return result.insertId;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -66,11 +85,27 @@ async function getAdminAction(actionId) {
   return rows.length > 0 ? rows[0] : null;
 }
 
-async function waitForAdminAction(actionId, maxWaitMs = 20000) {
+async function getControlAction(actionId) {
+  const pool = getPool();
+
+  const [rows] = await pool.execute(
+    `
+    SELECT id, action_type, status, attempts, last_error, created_at, processed_at
+    FROM culling_control_actions
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [actionId]
+  );
+
+  return rows.length > 0 ? rows[0] : null;
+}
+
+async function waitForAdminAction(actionId, maxWaitMs = 20000, isLegacy = true) {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < maxWaitMs) {
-    const action = await getAdminAction(actionId);
+    const action = isLegacy ? await getAdminAction(actionId) : await getControlAction(actionId);
 
     if (!action) {
       return {
@@ -92,14 +127,8 @@ async function waitForAdminAction(actionId, maxWaitMs = 20000) {
   };
 }
 
-async function getPlayerSnapshotFromCommand(minecraftCommand) {
-  const match = minecraftCommand.match(/cullingadmin\s+(pontos|vidas)\s+\w+\s+([^\s]+)/i);
-
-  if (!match) {
-    return null;
-  }
-
-  const nick = match[2];
+async function getPlayerSnapshot(nick) {
+  if (!nick) return null;
 
   const pool = getPool();
 
@@ -116,24 +145,24 @@ async function getPlayerSnapshotFromCommand(minecraftCommand) {
   return rows.length > 0 ? rows[0] : null;
 }
 
-async function replyQueued(interaction, actionId, minecraftCommand) {
+async function replyQueued(interaction, actionId, displayDesc, targetNick, isLegacy = true) {
   const pendingEmbed = new EmbedBuilder()
     .setTitle("⏳ Pedido enviado ao plugin")
     .setColor(0xffaa00)
     .setDescription(
       `**ID da ação:** \`#${actionId}\`\n` +
         `**Executor:** <@${interaction.user.id}>\n` +
-        `**Comando Minecraft:** \`${minecraftCommand.replace(/`/g, "'")}\`\n\n` +
-        `Aguardando o plugin executar pelo console...`
+        `**Ação:** \`${displayDesc.replace(/`/g, "'")}\`\n\n` +
+        `Aguardando o plugin executar...`
     )
     .setFooter({ text: "Jogo do Abate • Admin Bot" })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [pendingEmbed] });
 
-  const result = await waitForAdminAction(actionId);
-  const playerSnapshot = result.status === "DONE"
-    ? await getPlayerSnapshotFromCommand(minecraftCommand)
+  const result = await waitForAdminAction(actionId, 20000, isLegacy);
+  const playerSnapshot = (result.status === "DONE" && targetNick)
+    ? await getPlayerSnapshot(targetNick)
     : null;
 
   let title;
@@ -171,7 +200,7 @@ async function replyQueued(interaction, actionId, minecraftCommand) {
     .setDescription(
       `**ID da ação:** \`#${actionId}\`\n` +
         `**Executor:** <@${interaction.user.id}>\n` +
-        `**Comando Minecraft:** \`${minecraftCommand.replace(/`/g, "'")}\`\n` +
+        `**Ação:** \`${displayDesc.replace(/`/g, "'")}\`\n` +
         `**Status:** \`${result.status}\`\n` +
         `**Tentativas:** \`${result.attempts ?? "-"}\`` +
         extra
@@ -235,10 +264,18 @@ async function handleAdminPontos(interaction) {
     return;
   }
 
-  const command = `/cullingadmin pontos ${action} ${nick} ${value}`;
+  const commandMap = {
+    set: "PLAYER_POINTS_SET",
+    add: "PLAYER_POINTS_ADD",
+    remove: "PLAYER_POINTS_REMOVE"
+  };
 
-  const actionId = await enqueueAdminAction(interaction, "PONTOS", command);
-  await replyQueued(interaction, actionId, command);
+  const actionType = commandMap[action];
+  const payload = { value };
+  const displayDesc = `/adminpontos ${action} ${nick} ${value}`;
+
+  const actionId = await enqueueControlAction(interaction, actionType, nick, payload);
+  await replyQueued(interaction, actionId, displayDesc, nick, false);
 }
 
 async function handleAdminVidas(interaction) {
@@ -294,16 +331,28 @@ async function handleAdminVidas(interaction) {
     return;
   }
 
-  let command;
+  let actionType;
+  let payload = {};
+  let displayDesc;
 
   if (["set", "add", "remove"].includes(action)) {
-    command = `/cullingadmin vidas ${action} ${nick} ${value}`;
+    const map = { set: "PLAYER_LIVES_SET", add: "PLAYER_LIVES_ADD", remove: "PLAYER_LIVES_REMOVE" };
+    actionType = map[action];
+    payload = { value };
+    displayDesc = `/adminvidas ${action} ${nick} ${value}`;
+  } else if (action === "eliminar") {
+    actionType = "PLAYER_ELIMINATE";
+    displayDesc = `/adminvidas eliminar ${nick}`;
+  } else if (action === "reviver") {
+    actionType = "PLAYER_REVIVE";
+    displayDesc = `/adminvidas reviver ${nick}`;
   } else {
-    command = `/cullingadmin vidas ${action} ${nick}`;
+    actionType = "PLAYER_LIVES_RESET";
+    displayDesc = `/adminvidas ${action} ${nick}`;
   }
 
-  const actionId = await enqueueAdminAction(interaction, "VIDAS", command);
-  await replyQueued(interaction, actionId, command);
+  const actionId = await enqueueControlAction(interaction, actionType, nick, payload);
+  await replyQueued(interaction, actionId, displayDesc, nick, false);
 }
 
 async function handleAdminBoss(interaction) {
@@ -316,7 +365,7 @@ async function handleAdminBoss(interaction) {
   const command = `/cullingadmin boss ${action}`;
 
   const actionId = await enqueueAdminAction(interaction, "BOSS", command);
-  await replyQueued(interaction, actionId, command);
+  await replyQueued(interaction, actionId, command, null, true);
 }
 
 async function handleAdminPedido(interaction) {
@@ -336,7 +385,7 @@ async function handleAdminPedido(interaction) {
   const command = `/cullingadmin pedidos ${action} ${id} ${text}`;
 
   const actionId = await enqueueAdminAction(interaction, "PEDIDO", command);
-  await replyQueued(interaction, actionId, command);
+  await replyQueued(interaction, actionId, command, null, true);
 }
 
 async function handleSetupPanel(interaction) {

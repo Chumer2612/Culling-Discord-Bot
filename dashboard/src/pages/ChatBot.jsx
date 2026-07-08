@@ -3,6 +3,10 @@ import { Send } from 'lucide-react';
 
 export default function ChatBot({ token }) {
   const [channels, setChannels] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [selectedRole, setSelectedRole] = useState('');
+  const [selectedMember, setSelectedMember] = useState('');
   const [formData, setFormData] = useState({
     channelId: '',
     content: '',
@@ -21,7 +25,25 @@ export default function ChatBot({ token }) {
         setChannels(data);
         if (data.length > 0) setFormData(f => ({ ...f, channelId: data[0].id }));
       });
+
+    fetch('/api/roles', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(setRoles);
+      
+    fetch('/api/members', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(setMembers);
   }, [token]);
+
+  const appendMention = (type) => {
+    if (type === 'role' && selectedRole) {
+      setFormData(f => ({ ...f, content: f.content + `<@&${selectedRole}> ` }));
+      setSelectedRole('');
+    } else if (type === 'member' && selectedMember) {
+      setFormData(f => ({ ...f, content: f.content + `<@${selectedMember}> ` }));
+      setSelectedMember('');
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -72,6 +94,29 @@ export default function ChatBot({ token }) {
                   <option key={c.id} value={c.id}>#{c.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div className="input-group">
+                <label>Mencionar Cargo</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select className="input-field" value={selectedRole} onChange={e => setSelectedRole(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {roles.map(r => <option key={r.id} value={r.id}>@{r.name}</option>)}
+                  </select>
+                  <button type="button" className="btn btn-outline" onClick={() => appendMention('role')}>Add</button>
+                </div>
+              </div>
+              <div className="input-group">
+                <label>Mencionar Membro</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select className="input-field" value={selectedMember} onChange={e => setSelectedMember(e.target.value)}>
+                    <option value="">Selecione...</option>
+                    {members.map(m => <option key={m.id} value={m.id}>@{m.displayName}</option>)}
+                  </select>
+                  <button type="button" className="btn btn-outline" onClick={() => appendMention('member')}>Add</button>
+                </div>
+              </div>
             </div>
 
             <div className="input-group">

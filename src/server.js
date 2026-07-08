@@ -265,6 +265,39 @@ app.get("/api/channels", authenticateToken, async (req, res) => {
   }
 });
 
+// Cargos Disponíveis
+app.get("/api/roles", authenticateToken, async (req, res) => {
+  try {
+    const guild = client.guilds.cache.first();
+    if (!guild) return res.json([]);
+    const roles = guild.roles.cache
+      .filter(r => r.name !== '@everyone')
+      .map(r => ({ id: r.id, name: r.name, color: r.hexColor }));
+    res.json(roles);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
+// Membros Disponíveis
+app.get("/api/members", authenticateToken, async (req, res) => {
+  try {
+    const guild = client.guilds.cache.first();
+    if (!guild) return res.json([]);
+    await guild.members.fetch();
+    const members = guild.members.cache.map(m => ({
+      id: m.id,
+      displayName: m.displayName,
+      username: m.user.username
+    }));
+    res.json(members);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro interno" });
+  }
+});
+
 // Aprovar/Negar Pedido pelo Web
 app.post("/api/requests/:id/status", authenticateToken, async (req, res) => {
   try {
