@@ -30,9 +30,9 @@ export default function LoginPage() {
               <Shield className="w-10 h-10 text-purple-400" />
             </div>
             <div>
-              <CardTitle className="text-3xl font-bold tracking-tight neon-text">Kogane Admin</CardTitle>
+              <CardTitle className="text-3xl font-bold tracking-tight neon-text">Jogo do Abate</CardTitle>
               <CardDescription className="text-muted-foreground/80 mt-2 text-base">
-                Acesso restrito ao controle do Jogo do Abate
+                Acesso restrito ao controle do evento
               </CardDescription>
             </div>
           </CardHeader>

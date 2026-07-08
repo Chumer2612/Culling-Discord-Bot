@@ -34,13 +34,19 @@ export default function PlayersPage() {
   const [actionValue, setActionValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchPlayers = () => {
-    fetch("/api/players")
-      .then((res) => res.json())
-      .then((data) => {
-        setPlayers(data);
-        setLoading(false);
-      });
+  const fetchPlayers = async () => {
+    try {
+      const res = await fetch("/api/players");
+      if (!res.ok) throw new Error("Erro na API");
+      const data = await res.json();
+      setPlayers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setPlayers([]);
+      toast.error("Não foi possível carregar os jogadores da API.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

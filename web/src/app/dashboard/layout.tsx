@@ -5,13 +5,13 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, LogOut, Loader2, Gamepad2 } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Loader2, Gamepad2, Shield, MessageSquare } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<{ id: string; username: string; avatar: string } | null>(null);
+  const [user, setUser] = useState<{ discordId: string; username: string; avatar: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         <div className="h-16 flex items-center px-6 border-b border-white/5">
           <Gamepad2 className="w-6 h-6 text-purple-400 mr-2" />
-          <span className="font-bold text-lg neon-text">Kogane</span>
+          <span className="font-bold text-lg neon-text">Jogo do Abate</span>
         </div>
         
         <nav className="flex-1 p-4 flex flex-col gap-2">
@@ -63,12 +63,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Jogadores
             </Button>
           </Link>
+          <Link href="/dashboard/rules">
+            <Button variant={pathname === "/dashboard/rules" ? "secondary" : "ghost"} className="w-full justify-start">
+              <Shield className="mr-2 w-4 h-4" />
+              Regras e Condições
+            </Button>
+          </Link>
+          <Link href="/dashboard/chat">
+            <Button variant={pathname === "/dashboard/chat" ? "secondary" : "ghost"} className="w-full justify-start">
+              <MessageSquare className="mr-2 w-4 h-4" />
+              Chat do Bot
+            </Button>
+          </Link>
         </nav>
 
         <div className="p-4 border-t border-white/5">
           <div className="flex items-center gap-3 mb-4">
             <Avatar>
-              <AvatarImage src={`https://cdn.discordapp.com/avatars/${user?.id}/${user?.avatar}.png`} />
+              <AvatarImage src={`https://cdn.discordapp.com/avatars/${user?.discordId}/${user?.avatar}.png`} />
               <AvatarFallback>{user?.username?.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col overflow-hidden">
