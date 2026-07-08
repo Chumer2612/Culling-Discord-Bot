@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 
-const outfit = Outfit({
+const poppins = Poppins({
   variable: "--font-sans",
+  weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Jogo do Abate | Painel",
-  description: "Painel de Controle Oficial do Jogo do Abate",
+  title: "Jogo do Abate | Admin",
+  description: "Painel de Administração do Kogane",
 };
 
 export default function RootLayout({
@@ -21,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <body
-        className={`${outfit.variable} antialiased`}
+        className={`${poppins.variable} antialiased`}
       >
         {children}
         <Toaster theme="dark" />
