@@ -3,7 +3,7 @@ import { DatabaseService } from '../database/database.service';
 
 @Injectable()
 export class RulesService {
-  private readonly botToken = process.env.DISCORD_TOKEN;
+  private get botToken() { return process.env.DISCORD_TOKEN; }
 
   constructor(private readonly db: DatabaseService) {}
 

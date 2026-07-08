@@ -2,15 +2,19 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 @Injectable()
 export class ChatService {
-  private readonly botToken = process.env.DISCORD_TOKEN;
-  private readonly guildId = process.env.DISCORD_GUILD_ID;
+  private get botToken() { return process.env.DISCORD_TOKEN; }
+  private get guildId() { return process.env.DISCORD_GUILD_ID; }
 
   async getChannels() {
     try {
       const res = await fetch(`https://discord.com/api/v10/guilds/${this.guildId}/channels`, {
         headers: { Authorization: `Bot ${this.botToken}` }
       });
-      if (!res.ok) throw new Error('Falha ao buscar canais do Discord');
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('Discord API Error:', errText, 'Token:', this.botToken, 'Guild:', this.guildId);
+        throw new Error('Falha ao buscar canais do Discord');
+      }
       const channels = await res.json();
       // Filtrar apenas canais de texto (type = 0) ou anúncios (type = 5)
       return channels
