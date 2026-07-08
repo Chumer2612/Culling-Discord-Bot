@@ -50,7 +50,7 @@ services:
       - DB_USER=${MYSQL_USER}
       - DB_PASSWORD=${MYSQL_PASSWORD}
       - PORT=3002
-      - FRONTEND_URL=http://localhost:3001
+      - FRONTEND_URL=${FRONTEND_URL}
 
   culling-admin-web:
     build: 
