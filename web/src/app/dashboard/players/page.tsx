@@ -157,10 +157,8 @@ export default function PlayersPage() {
                   </TableCell>
                   <TableCell className="text-right pr-6">
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0 border border-transparent hover:border-white/10">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                      <DropdownMenuTrigger className="h-8 w-8 p-0 border border-transparent hover:border-white/10 flex items-center justify-center rounded-md hover:bg-white/5 transition-colors">
+                        <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="bg-popover/90 backdrop-blur-xl border-white/10">
                         <DropdownMenuLabel>Ações Administrativas</DropdownMenuLabel>
