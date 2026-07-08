@@ -18,7 +18,7 @@ type Player = {
   discordId: string;
   discordUsername: string;
   discordAvatar: string;
-  points: number;
+  kills: number;
   lives: number;
   fame: number;
   eliminated: boolean;
@@ -111,7 +111,7 @@ export default function PlayersPage() {
               <TableHead className="w-[80px]">Discord</TableHead>
               <TableHead>Nickname</TableHead>
               <TableHead className="text-center">Vidas</TableHead>
-              <TableHead className="text-center">Pontos</TableHead>
+              <TableHead className="text-center">Kills</TableHead>
               <TableHead className="text-center">Fama</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right pr-6">Ações</TableHead>
@@ -150,7 +150,7 @@ export default function PlayersPage() {
                   <TableCell className="text-center">
                     <span className="font-mono text-purple-400">{player.lives}</span>
                   </TableCell>
-                  <TableCell className="text-center font-mono">{player.points}</TableCell>
+                  <TableCell className="text-center font-mono text-red-400">{player.kills}</TableCell>
                   <TableCell className="text-center">
                     <span className="font-mono text-orange-400">{player.fame.toLocaleString()}</span>
                   </TableCell>

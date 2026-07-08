@@ -10,9 +10,12 @@ export class PlayersService {
     const [rows]: any = await pool.execute(
       `
       SELECT p.uuid, p.name, p.fame, p.lives, p.eliminated, p.allowed, p.created_at, p.updated_at,
-             d.discord_id, d.discord_name
+             d.discord_id, d.discord_name,
+             COUNT(k.id) as kills
       FROM culling_players p
       LEFT JOIN culling_discord_links d ON d.minecraft_uuid = p.uuid
+      LEFT JOIN culling_kills k ON p.uuid = k.killer_uuid
+      GROUP BY p.uuid
       ORDER BY p.fame DESC
       `
     );
