@@ -1,4 +1,6 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, AttachmentBuilder } = require("discord.js");
+const fs = require("fs");
+const path = require("path");
 const { getPool } = require("./database");
 const { client, CHANNELS } = require("./config");
 const { buildRequestButtonsForOutbox } = require("./components/requestButtons");
@@ -84,23 +86,56 @@ async function sendOutboxRow(row) {
 
   const embed = new EmbedBuilder()
     .setColor(Number(row.embed_color || 0xffaa00))
-    .setDescription(row.description || "")
     .setTimestamp(new Date(row.created_at))
     .setFooter({ text: "Jogo do Abate" });
 
   if (row.title && row.title.trim() !== "") {
     embed.setTitle(row.title);
   }
+  
+  let desc = row.description || "";
+  let files = [];
+  
+  const bossIdRegex = /\[BOSS_ID:(.+?)\]/;
+  const bossMatch = desc.match(bossIdRegex);
+  
+  if (bossMatch) {
+    const bossId = bossMatch[1];
+    desc = desc.replace(bossMatch[0], "").trim();
+    
+    const assetsDir = path.join(__dirname, "assets", "bosses");
+    if (!fs.existsSync(assetsDir)) {
+      fs.mkdirSync(assetsDir, { recursive: true });
+    }
+    
+    const pngPath = path.join(assetsDir, `${bossId}.png`);
+    const jpgPath = path.join(assetsDir, `${bossId}.jpg`);
+    const jpegPath = path.join(assetsDir, `${bossId}.jpeg`);
+    
+    if (fs.existsSync(pngPath)) {
+      files.push(new AttachmentBuilder(pngPath));
+      embed.setImage(`attachment://${bossId}.png`);
+    } else if (fs.existsSync(jpgPath)) {
+      files.push(new AttachmentBuilder(jpgPath));
+      embed.setImage(`attachment://${bossId}.jpg`);
+    } else if (fs.existsSync(jpegPath)) {
+      files.push(new AttachmentBuilder(jpegPath));
+      embed.setImage(`attachment://${bossId}.jpeg`);
+    }
+  }
+  
+  embed.setDescription(desc);
 
   const components = await buildRequestButtonsForOutbox(row);
 
   await channel.send({
-  embeds: [embed],
-  components,
-  allowedMentions: {
-    parse: ["users"],
-  },
-});
+    embeds: [embed],
+    components,
+    files,
+    allowedMentions: {
+      parse: ["users"],
+    },
+  });
 }
 
 async function cleanupDiscordOutbox() {

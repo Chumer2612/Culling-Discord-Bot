@@ -121,13 +121,13 @@ app.get("/api/players", authenticateToken, async (req, res) => {
       SELECT 
         p.uuid, 
         p.name as player_name, 
-        p.fame as fame_points, 
+        p.points as fame_points, 
         p.lives as current_lives,
         COUNT(k.id) as kills
       FROM culling_players p
       LEFT JOIN culling_kills k ON p.uuid = k.killer_uuid
       GROUP BY p.uuid
-      ORDER BY p.fame DESC
+      ORDER BY p.points DESC
     `;
     const [players] = await pool.execute(query);
     res.json(players);
