@@ -16,6 +16,7 @@ const { processDiscordOutbox, cleanupDiscordOutbox } = require("./src/outbox");
 const {
   deleteExpiredCodes,
   handleInteraction,
+  handleMessageCreate,
 } = require("./src/commands/publicCommands");
 const { cleanupAdminActions } = require("./src/adminActions");
 const { runHealthMonitor } = require("./src/healthMonitor");
@@ -50,6 +51,7 @@ client.on("guildCreate", async (guild) => {
 });
 
 client.on(Events.InteractionCreate, handleInteraction);
+client.on(Events.MessageCreate, handleMessageCreate);
 
 async function start() {
   await createDatabasePool();

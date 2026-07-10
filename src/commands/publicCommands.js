@@ -129,17 +129,8 @@ async function handleInteraction(interaction) {
 
 }
 
-async function handleVincular(interaction) {
-  await interaction.deferReply({ flags: 64 });
-
+async function processVincularLogic(code, discordId, discordName, guild) {
   const pool = getPool();
-
-  const rawCode = interaction.options.getString("codigo", true);
-  const code = rawCode.trim().toUpperCase();
-
-  const discordId = interaction.user.id;
-  const discordName = interaction.user.tag || interaction.user.username;
-
   const connection = await pool.getConnection();
 
   try {
@@ -160,11 +151,7 @@ async function handleVincular(interaction) {
 
     if (codes.length === 0) {
       await connection.rollback();
-
-      await interaction.editReply(
-        "❌ Código inválido ou expirado.\nUse `/discord vincular` novamente dentro do Minecraft."
-      );
-      return;
+      return "❌ Código inválido ou expirado.\nUse `/discord vincular` novamente dentro do Minecraft.";
     }
 
     const linkCode = codes[0];
@@ -182,12 +169,7 @@ async function handleVincular(interaction) {
 
     if (existingDiscordLinks.length > 0) {
       await connection.rollback();
-
-      await interaction.editReply(
-        `❌ Este Discord já está vinculado ao Minecraft **${existingDiscordLinks[0].minecraft_name}**.\n` +
-          "Peça ajuda à staff se isso estiver errado."
-      );
-      return;
+      return `❌ Este Discord já está vinculado ao Minecraft **${existingDiscordLinks[0].minecraft_name}**.\nPeça ajuda à staff se isso estiver errado.`;
     }
 
     await connection.execute(
@@ -226,20 +208,67 @@ async function handleVincular(interaction) {
 
     await connection.commit();
 
-    const roleResult = await ensureJogadoresRole(interaction.guild, discordId);
+    const roleResult = await ensureJogadoresRole(guild, discordId);
 
-    await interaction.editReply(
-      `✅ Conta vinculada com sucesso!\n\n` +
-      `**Minecraft:** ${linkCode.minecraft_name}\n` +
-      `**Discord:** <@${discordId}>\n` +
-      `**Cargo:** ${formatRoleResult(roleResult)}`
-    );
+    return `✅ Conta vinculada com sucesso!\n\n**Minecraft:** ${linkCode.minecraft_name}\n**Discord:** <@${discordId}>\n**Cargo:** ${formatRoleResult(roleResult)}`;
 
   } catch (error) {
     await connection.rollback();
     throw error;
   } finally {
     connection.release();
+  }
+}
+
+async function handleVincular(interaction) {
+  await interaction.deferReply({ flags: 64 });
+
+  const rawCode = interaction.options.getString("codigo", true);
+  const code = rawCode.trim().toUpperCase();
+  const discordId = interaction.user.id;
+  const discordName = interaction.user.tag || interaction.user.username;
+
+  try {
+    const resultMsg = await processVincularLogic(code, discordId, discordName, interaction.guild);
+    await interaction.editReply(resultMsg);
+  } catch (error) {
+    console.error("Erro no vincular:", error);
+    await interaction.editReply("❌ Ocorreu um erro interno ao processar o vínculo.");
+  }
+}
+
+async function handleMessageCreate(message) {
+  if (message.author.bot) return;
+
+  const args = message.content.trim().split(/ +/);
+  if (args[0].toLowerCase() === "/vincular") {
+    // Apaga a mensagem para esconder o código e não poluir
+    message.delete().catch(() => null);
+
+    if (args.length < 2) {
+      const reply = await message.reply("❌ Forneça o código de vínculo! Ex: `/vincular XYZ123`");
+      setTimeout(() => reply.delete().catch(() => null), 10000);
+      return;
+    }
+
+    const code = args[1].toUpperCase();
+    const discordId = message.author.id;
+    const discordName = message.author.tag || message.author.username;
+
+    try {
+      const resultMsg = await processVincularLogic(code, discordId, discordName, message.guild);
+      
+      // Tenta enviar via DM para simular o ephemeral
+      message.author.send(resultMsg).catch(async () => {
+        // Se a DM estiver fechada, manda no chat e apaga depois
+        const reply = await message.reply(resultMsg);
+        setTimeout(() => reply.delete().catch(() => null), 10000);
+      });
+    } catch (error) {
+      console.error("Erro no messageCreate vincular:", error);
+      const reply = await message.reply("❌ Ocorreu um erro interno ao processar o vínculo.");
+      setTimeout(() => reply.delete().catch(() => null), 10000);
+    }
   }
 }
 
@@ -330,4 +359,5 @@ async function deleteExpiredCodes() {
 module.exports = {
   handleInteraction,
   deleteExpiredCodes,
+  handleMessageCreate,
 };
