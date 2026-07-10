@@ -1,4 +1,14 @@
+# Dependencias do Node (Gigantesco e com milhares de arquivos)
+node_modules/
+npm-debug.log
+
+# Variaveis de Ambiente (Senha do banco, token do bot) - NUNCA devem ir pro GitHub
 .env
-dashboard/node_modules
-dashboard/dist
-node_modules
+
+# Arquivos da IDE (Evita conflitos entre Notebook e Desktop)
+.idea/
+.vscode/
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db

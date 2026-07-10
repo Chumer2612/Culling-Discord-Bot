@@ -121,13 +121,13 @@ app.get("/api/players", authenticateToken, async (req, res) => {
       SELECT 
         p.uuid, 
         p.name as player_name, 
-        p.fame as fame_points, 
+        p.points as fame_points, 
         p.lives as current_lives,
         COUNT(k.id) as kills
       FROM culling_players p
       LEFT JOIN culling_kills k ON p.uuid = k.killer_uuid
       GROUP BY p.uuid
-      ORDER BY p.fame DESC
+      ORDER BY p.points DESC
     `;
     const [players] = await pool.execute(query);
     res.json(players);
@@ -255,9 +255,26 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
 // Canais Disponíveis (Para o Chat)
 app.get("/api/channels", authenticateToken, async (req, res) => {
   try {
-    const channels = client.channels.cache
+    let channels = client.channels.cache
       .filter(c => c.isTextBased())
-      .map(c => ({ id: c.id, name: c.name }));
+      .map(c => ({ id: c.id, name: c.name, position: c.rawPosition || c.position || 0 }));
+      
+    const priorityChannels = [
+      "1517638047225614367", // abate-anuncios
+      "1517638300515434607", // abate-chat
+      "1149928228455202838", // chat-comum
+      "1149929224954712166"  // dark-chat
+    ];
+
+    channels.sort((a, b) => {
+      const idxA = priorityChannels.indexOf(a.id);
+      const idxB = priorityChannels.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.position - b.position;
+    });
+    
     res.json(channels);
   } catch (error) {
     console.error(error);
@@ -270,9 +287,23 @@ app.get("/api/roles", authenticateToken, async (req, res) => {
   try {
     const guild = client.guilds.cache.first();
     if (!guild) return res.json([]);
-    const roles = guild.roles.cache
+    let roles = guild.roles.cache
       .filter(r => r.name !== '@everyone')
-      .map(r => ({ id: r.id, name: r.name, color: r.hexColor }));
+      .map(r => ({ id: r.id, name: r.name, color: r.hexColor, position: r.rawPosition || r.position || 0 }));
+      
+    const priorityRoles = [
+      "1521382455171612792" // Jogadores
+    ];
+
+    roles.sort((a, b) => {
+      const idxA = priorityRoles.indexOf(a.id);
+      const idxB = priorityRoles.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return b.position - a.position;
+    });
+    
     res.json(roles);
   } catch (error) {
     console.error(error);
@@ -285,12 +316,22 @@ app.get("/api/members", authenticateToken, async (req, res) => {
   try {
     const guild = client.guilds.cache.first();
     if (!guild) return res.json([]);
-    await guild.members.fetch();
-    const members = guild.members.cache.map(m => ({
-      id: m.id,
-      displayName: m.displayName,
-      username: m.user.username
-    }));
+    
+    try {
+      await guild.members.fetch();
+    } catch (e) {
+      console.warn("[CullingBot] Aviso: falha no fetch de membros (Verifique o Intent de Membros no portal do Discord):", e.message);
+    }
+
+    let members = guild.members.cache
+      .filter(m => !m.user.bot)
+      .map(m => ({
+        id: m.id,
+        displayName: m.displayName,
+        username: m.user.username
+      }));
+      
+    members.sort((a, b) => a.displayName.localeCompare(b.displayName));
     res.json(members);
   } catch (error) {
     console.error(error);
