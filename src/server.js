@@ -3,6 +3,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const path = require("path");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
 const { getPool } = require("./database");
 const { client } = require("./config");
 
@@ -222,10 +223,12 @@ app.get("/api/requests", authenticateToken, async (req, res) => {
   }
 });
 
+const upload = multer({ storage: multer.memoryStorage() });
+
 // Chat as Bot
-app.post("/api/chat", authenticateToken, async (req, res) => {
+app.post("/api/chat", authenticateToken, upload.single("imageFile"), async (req, res) => {
   try {
-    const { channelId, content, embedTitle, embedDescription, embedColor } = req.body;
+    const { channelId, content, embedTitle, embedDescription, embedImage, embedColor } = req.body;
     
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (!channel || !channel.isTextBased()) {
@@ -235,13 +238,28 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
     const messageData = {};
     if (content) messageData.content = content;
     
-    if (embedTitle || embedDescription) {
+    let attachment = null;
+    if (req.file) {
+      const { AttachmentBuilder } = require("discord.js");
+      attachment = new AttachmentBuilder(req.file.buffer, { name: req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, "") || 'image.png' });
+    }
+    
+    if (embedTitle || embedDescription || embedImage || attachment) {
       const { EmbedBuilder } = require("discord.js");
       const embed = new EmbedBuilder();
       if (embedTitle) embed.setTitle(embedTitle);
       if (embedDescription) embed.setDescription(embedDescription);
-      if (embedColor) embed.setColor(parseInt(embedColor.replace("#", ""), 16));
+      
+      if (attachment) {
+        embed.setImage(`attachment://${attachment.name}`);
+      } else if (embedImage) {
+        embed.setImage(embedImage);
+      }
+      
+      if (embedColor) embed.setColor(parseInt(String(embedColor).replace("#", ""), 16));
+      
       messageData.embeds = [embed];
+      if (attachment) messageData.files = [attachment];
     }
 
     await channel.send(messageData);

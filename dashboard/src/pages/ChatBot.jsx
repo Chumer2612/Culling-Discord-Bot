@@ -7,11 +7,14 @@ export default function ChatBot({ token }) {
   const [members, setMembers] = useState([]);
   const [selectedRole, setSelectedRole] = useState('');
   const [selectedMember, setSelectedMember] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [formData, setFormData] = useState({
     channelId: '',
     content: '',
     embedTitle: '',
     embedDescription: '',
+    embedImage: '',
     embedColor: '#e51d38'
   });
   const [sending, setSending] = useState(false);
@@ -54,21 +57,46 @@ export default function ChatBot({ token }) {
     setSending(true);
 
     try {
+      const data = new FormData();
+      Object.keys(formData).forEach(key => data.append(key, formData[key]));
+      if (imageFile) {
+        data.append('imageFile', imageFile);
+      }
+
       await fetch('/api/chat', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}` 
         },
-        body: JSON.stringify(formData)
+        body: data
       });
       alert('Mensagem enviada com sucesso!');
-      setFormData({ ...formData, content: '', embedTitle: '', embedDescription: '' });
+      setFormData({ ...formData, content: '', embedTitle: '', embedDescription: '', embedImage: '' });
+      setImageFile(null);
+      setImagePreview(null);
     } catch (err) {
       alert('Erro ao enviar mensagem');
     }
     setSending(false);
   };
+
+  const handleFileChange = (file) => {
+    if (file && file.type.startsWith('image/')) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+      setFormData(f => ({ ...f, embedImage: '' })); // Limpa URL text
+    } else {
+      alert("Por favor, selecione uma imagem válida.");
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    handleFileChange(file);
+  };
+
+  const handleDragOver = (e) => e.preventDefault();
 
   return (
     <div>
@@ -169,6 +197,47 @@ export default function ChatBot({ token }) {
               />
             </div>
 
+            <div className="input-group">
+              <label>URL da Imagem (opcional)</label>
+              <input 
+                type="url" 
+                name="embedImage"
+                className="input-field" 
+                value={formData.embedImage}
+                onChange={handleChange}
+                placeholder="Ex: https://i.imgur.com/..."
+                disabled={!!imageFile}
+              />
+            </div>
+
+            <div 
+              className="input-group" 
+              style={{
+                border: '2px dashed rgba(255,255,255,0.2)',
+                padding: '24px',
+                textAlign: 'center',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                background: 'rgba(0,0,0,0.2)'
+              }}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onClick={() => document.getElementById('file-upload').click()}
+            >
+              <input 
+                type="file" 
+                id="file-upload" 
+                style={{ display: 'none' }} 
+                accept="image/*"
+                onChange={(e) => handleFileChange(e.target.files[0])}
+              />
+              {imageFile ? (
+                <span style={{ color: '#00aaff' }}>Arquivo: {imageFile.name} (Clique para trocar)</span>
+              ) : (
+                <span style={{ color: 'var(--text-muted)' }}>Ou <b>clique / arraste e solte</b> um arquivo de imagem aqui.</span>
+              )}
+            </div>
+
             <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }} disabled={sending}>
               <Send size={18} /> {sending ? 'Enviando...' : 'Publicar no Discord'}
             </button>
@@ -205,6 +274,14 @@ export default function ChatBot({ token }) {
                     )}
                     {formData.embedDescription && (
                       <div style={{ color: '#dbdee1', whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{formData.embedDescription}</div>
+                    )}
+                    {(imagePreview || formData.embedImage) && (
+                      <img 
+                        src={imagePreview || formData.embedImage} 
+                        alt="Embed Image" 
+                        style={{ marginTop: '16px', maxWidth: '100%', borderRadius: '4px' }} 
+                        onError={(e) => e.target.style.display = 'none'}
+                      />
                     )}
                   </div>
                 )}
