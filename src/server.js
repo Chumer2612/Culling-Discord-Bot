@@ -4,14 +4,19 @@ const jwt = require("jsonwebtoken");
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
+const crypto = require("crypto");
 const { getPool } = require("./database");
-const { client } = require("./config");
+const { client, ADMIN_USER_IDS } = require("./config");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || "culling_secret_key_123";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error("[ERRO CRÍTICO] JWT_SECRET não configurado no .env. Inicialização abortada por segurança.");
+  process.exit(1);
+}
 
 // Middleware de Autenticação
 function authenticateToken(req, res, next) {
@@ -27,72 +32,65 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// Rota de Login
-app.post("/api/login", async (req, res) => {
+// Rotas de Autenticação Discord (OAuth2)
+app.post("/api/auth/discord/login", (req, res) => {
+  const clientId = process.env.DISCORD_CLIENT_ID;
+  const redirectUri = encodeURIComponent(process.env.DISCORD_REDIRECT_URI);
+  if (!clientId || !redirectUri) {
+    return res.status(500).json({ error: "Discord OAuth2 não configurado no .env" });
+  }
+  const url = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=identify`;
+  res.json({ url });
+});
+
+app.post("/api/auth/discord/callback", async (req, res) => {
   try {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: "Faltam dados" });
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: "Código ausente" });
 
-    const pool = getPool();
-    const [users] = await pool.execute("SELECT * FROM culling_dashboard_users WHERE username = ?", [username]);
+    const clientId = process.env.DISCORD_CLIENT_ID;
+    const clientSecret = process.env.DISCORD_CLIENT_SECRET;
+    const redirectUri = process.env.DISCORD_REDIRECT_URI;
 
-    if (users.length === 0) {
-      return res.status(401).json({ error: "Usuário ou senha incorretos" });
+    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: redirectUri,
+      }),
+    });
+
+    const tokenData = await tokenResponse.json();
+    if (!tokenResponse.ok) {
+      console.error("[OAuth2] Erro no token:", tokenData);
+      return res.status(400).json({ error: "Falha na autorização" });
     }
 
-    const user = users[0];
-    const valid = await bcrypt.compare(password, user.password_hash);
-
-    if (valid) {
-      const token = jwt.sign({ id: user.id, username: user.username, admin: true }, JWT_SECRET, { expiresIn: "24h" });
-      res.json({ token, username: user.username });
-    } else {
-      res.status(401).json({ error: "Usuário ou senha incorretos" });
+    const userResponse = await fetch("https://discord.com/api/users/@me", {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    
+    const userData = await userResponse.json();
+    if (!userResponse.ok) {
+      return res.status(400).json({ error: "Falha ao buscar usuário" });
     }
+
+    const discordId = userData.id;
+    const discordName = userData.username;
+
+    if (!ADMIN_USER_IDS.has(discordId)) {
+      return res.status(403).json({ error: "Acesso Negado: Seu ID do Discord não está na whitelist (BOT_ADMIN_USER_IDS)." });
+    }
+
+    const token = jwt.sign({ id: discordId, username: discordName, admin: true }, JWT_SECRET, { expiresIn: "24h" });
+    res.json({ token, username: discordName });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Erro interno no servidor" });
-  }
-});
-
-// Usuários (Dashboard)
-app.get("/api/users", authenticateToken, async (req, res) => {
-  try {
-    const pool = getPool();
-    const [users] = await pool.execute("SELECT id, username, created_at FROM culling_dashboard_users ORDER BY id ASC");
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({ error: "Erro interno" });
-  }
-});
-
-app.post("/api/users", authenticateToken, async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: "Faltam dados" });
-
-    const pool = getPool();
-    const [existing] = await pool.execute("SELECT id FROM culling_dashboard_users WHERE username = ?", [username]);
-    if (existing.length > 0) return res.status(400).json({ error: "Usuário já existe" });
-
-    const hashed = await bcrypt.hash(password, 10);
-    await pool.execute("INSERT INTO culling_dashboard_users (username, password_hash) VALUES (?, ?)", [username, hashed]);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Erro interno" });
-  }
-});
-
-app.delete("/api/users/:id", authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (String(id) === String(req.user.id)) return res.status(400).json({ error: "Você não pode excluir a si mesmo" });
-
-    const pool = getPool();
-    await pool.execute("DELETE FROM culling_dashboard_users WHERE id = ?", [id]);
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: "Erro interno" });
   }
 });
 
@@ -148,18 +146,25 @@ app.post("/api/players/:uuid/action", authenticateToken, async (req, res) => {
     const [[player]] = await pool.execute("SELECT name FROM culling_players WHERE uuid = ?", [uuid]);
     if (!player) return res.status(404).json({ error: "Jogador não encontrado" });
 
-    let minecraftCommand = "";
-    if (action === "addVidas") minecraftCommand = `/cullingadmin vidas add ${player.name} ${value}`;
-    else if (action === "removeVidas") minecraftCommand = `/cullingadmin vidas remove ${player.name} ${value}`;
-    else if (action === "reviver") minecraftCommand = `/cullingadmin vidas reviver ${player.name}`;
-    else if (action === "addPontos") minecraftCommand = `/cullingadmin pontos add ${player.name} ${value}`;
-    else if (action === "removePontos") minecraftCommand = `/cullingadmin pontos remove ${player.name} ${value}`;
+    let actionType = "";
+    let payload = {};
+
+    if (action === "addVidas") { actionType = "PLAYER_LIVES_ADD"; payload = { value: parseInt(value, 10) || 0 }; }
+    else if (action === "removeVidas") { actionType = "PLAYER_LIVES_REMOVE"; payload = { value: parseInt(value, 10) || 0 }; }
+    else if (action === "reviver") { actionType = "PLAYER_REVIVE"; payload = {}; }
+    else if (action === "addPontos") { actionType = "PLAYER_POINTS_ADD"; payload = { value: parseInt(value, 10) || 0 }; }
+    else if (action === "removePontos") { actionType = "PLAYER_POINTS_REMOVE"; payload = { value: parseInt(value, 10) || 0 }; }
     else return res.status(400).json({ error: "Ação inválida" });
 
+    const discordId = req.user.id || "0000";
+    const discordName = req.user.username || "Dashboard";
+    const idempotencyKey = crypto.randomUUID();
+
     await pool.execute(
-      `INSERT INTO culling_discord_admin_actions (discord_id, discord_name, action_type, minecraft_command, status)
-       VALUES (?, ?, ?, ?, 'PENDING')`,
-      ["Dashboard", "Painel Web", action.includes("Pontos") ? "PONTOS" : "VIDAS", minecraftCommand]
+      `INSERT INTO culling_control_actions
+      (origin, actor_type, actor_id, actor_name, action_type, target_name, payload_json, idempotency_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ["DISCORD", "DISCORD_USER", discordId, discordName, actionType, player.name, JSON.stringify(payload), idempotencyKey]
     );
 
     res.json({ success: true, message: "Ação enviada para a fila" });
@@ -393,10 +398,15 @@ app.post("/api/requests/:id/status", authenticateToken, async (req, res) => {
     if (status === 'DENIED') {
       // Devolver os pontos se o custo for > 0
       if (cost > 0) {
+        const discordId = req.user.id || "0000";
+        const discordName = req.user.username || "Dashboard";
+        const idempotencyKey = crypto.randomUUID();
+        
         await pool.execute(
-          `INSERT INTO culling_discord_admin_actions (discord_id, discord_name, action_type, minecraft_command, status)
-           VALUES ('Dashboard', 'Painel Web', 'REFUND', ?, 'PENDING')`,
-          [`/cullingadmin pontos add ${playerName} ${cost}`]
+          `INSERT INTO culling_control_actions
+          (origin, actor_type, actor_id, actor_name, action_type, target_name, payload_json, idempotency_key)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          ["DISCORD", "DISCORD_USER", discordId, discordName, "PLAYER_POINTS_ADD", playerName, JSON.stringify({ value: cost }), idempotencyKey]
         );
       }
       notificationMsg = `§c§l[!] SEU PEDIDO FOI NEGADO!\n§cTipo: §f${reqType}\n§cMotivo: §f${staffNotes || "Não informado"}\n§aSeus ${cost} pontos foram reembolsados!`;

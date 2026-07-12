@@ -129,7 +129,11 @@ async function ensureDatabaseTables() {
   // Seeding inicial para não perder acesso
   const [users] = await pool.execute("SELECT id FROM culling_dashboard_users LIMIT 1");
   if (users.length === 0) {
-    const defaultPassword = process.env.DASHBOARD_PASSWORD || "abate123";
+    const defaultPassword = process.env.DASHBOARD_PASSWORD;
+    if (!defaultPassword) {
+      console.error("[ERRO CRÍTICO] DASHBOARD_PASSWORD não configurado no .env. Inicialização abortada por segurança.");
+      process.exit(1);
+    }
     const hashed = await bcrypt.hash(defaultPassword, 10);
     await pool.execute(
       "INSERT INTO culling_dashboard_users (username, password_hash) VALUES (?, ?)",

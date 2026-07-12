@@ -24,9 +24,6 @@ export default function Layout({ onLogout }) {
           <NavLink to="/chat" className={({isActive}) => isActive ? "nav-link active" : "nav-link"}>
             <MessageSquare size={20} /> Chat do Bot
           </NavLink>
-          <NavLink to="/users" className={({isActive}) => isActive ? "nav-link active" : "nav-link"}>
-            <ShieldAlert size={20} /> Administradores
-          </NavLink>
         </nav>
 
         <div style={{ padding: '24px' }}>
