@@ -12,11 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  console.error("[ERRO CRÍTICO] JWT_SECRET não configurado no .env. Inicialização abortada por segurança.");
-  process.exit(1);
-}
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString("hex");
 
 // Middleware de Autenticação
 function authenticateToken(req, res, next) {
