@@ -510,8 +510,8 @@ app.use((req, res) => {
 });
 
 function startServer(port = 3000) {
-  app.listen(port, () => {
-    console.log(`[CullingBot] Dashboard Web rodando na porta ${port}`);
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`[CullingBot] Dashboard Web rodando na porta ${port} (IPv4)`);
   });
 }
 
