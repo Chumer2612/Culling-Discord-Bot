@@ -14,6 +14,8 @@ async function createDatabasePool() {
     connectionLimit: 5,
     queueLimit: 0,
     charset: "utf8mb4",
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
   });
 
   await pool.query("SELECT 1");
